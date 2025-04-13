@@ -3,8 +3,8 @@ from fastapi import FastAPI, File, UploadFile, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from io import BytesIO
 
-from recommendation_engine import analyze_image, recommend_style
-
+#//from recommendation_engine import analyze_image, recommend_style
+from backend.recommendation_engine import analyze_image, recommend_style
 app = FastAPI(title="AI Personal Stylist API")
 
 # Allow CORS for frontend development
