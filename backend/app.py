@@ -1,10 +1,8 @@
-# backend/app.py
 from fastapi import FastAPI, File, UploadFile, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from io import BytesIO
-
-#//from recommendation_engine import analyze_image, recommend_style
 from backend.recommendation_engine import analyze_image, recommend_style
+
 app = FastAPI(title="AI Personal Stylist API")
 
 # Allow CORS for frontend development
@@ -31,7 +29,7 @@ async def analyze_color(file: UploadFile = File(...)):
 @app.post("/recommend")
 async def full_recommendation(file: UploadFile = File(...)):
     """
-    Endpoint that returns both color analysis and stylist recommendations
+    Endpoint that returns both color analysis and stylist recommendations.
     """
     if not file.content_type.startswith("image/"):
         raise HTTPException(status_code=400, detail="Invalid image file")

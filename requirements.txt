@@ -1,5 +1,14 @@
-fastapi
-uvicorn
-python-multipart
+# fastapi
+# uvicorn
+# python-multipart
+# pillow
+# colorthief
+# scikit-learn
+# tensorflow
+
+tensorflow
 pillow
 colorthief
+scikit-learn
+fastapi
+uvicorn

@@ -95,3 +95,6 @@ frontend\node_modules
 # Ignore Node.js dependencies in frontend
 /frontend/node_modules/
 frontend/node_modules/
+
+deepfashion2\annos
+/deepfashion2

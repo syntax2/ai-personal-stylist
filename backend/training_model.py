@@ -1,34 +1,102 @@
-# # backend/training_model.py
+# import os
+# import json
+# import numpy as np
 # import tensorflow as tf
 # from tensorflow.keras.models import Sequential
-# from tensorflow.keras.layers import Conv2D, MaxPooling2D, Flatten, Dense, Dropout, GlobalAveragePooling2D
-# from tensorflow.keras.preprocessing.image import ImageDataGenerator
+# from tensorflow.keras.layers import Dense, Dropout, GlobalAveragePooling2D
+# from tensorflow.keras.applications import MobileNetV2
+# from tensorflow.keras.optimizers import Adam
+# from sklearn.model_selection import train_test_split
 
-# # Parameters
+# from PIL import Image
+
+# # Global parameters
 # IMAGE_SIZE = (224, 224)
 # BATCH_SIZE = 32
 # EPOCHS = 10
-# NUM_CLASSES = 4  # e.g., top, bottom, dress, outerwear
+# NUM_CLASSES = 4  # classes: top, bottom, dress, outerwear
 
-# def create_model():
-#     # Using a simple CNN; consider switching to a pretrained model for better performance.
-#     model = Sequential([
-#         Conv2D(32, (3, 3), activation='relu', input_shape=(IMAGE_SIZE[0], IMAGE_SIZE[1], 3)),
-#         MaxPooling2D(2, 2),
-#         Conv2D(64, (3, 3), activation='relu'),
-#         MaxPooling2D(2, 2),
-#         Flatten(),
-#         Dense(128, activation='relu'),
-#         Dropout(0.5),
-#         Dense(NUM_CLASSES, activation='softmax')
-#     ])
-#     model.compile(optimizer='adam', loss='categorical_crossentropy', metrics=['accuracy'])
-#     return model
+# # Mapping categories from annotations to our standardized classes.
+# # Adjust or extend these mappings based on the dataset annotations.
+# CATEGORY_MAPPING = {
+#     "sling dress": "dress",
+#     "dress": "dress",
+#     "top": "top",
+#     "blouse": "top",
+#     "vest": "top",
+#     "trouser": "bottom",
+#     "skirt": "bottom",
+#     "outerwear": "outerwear",
+#     "jacket": "outerwear",
+#     "coat": "outerwear",
+#     # Add more mappings as needed...
+# }
 
-# # Alternatively, for better accuracy, you could use transfer learning with a pretrained model:
+# # Directories (DeepFashion2 folder is at the root level)
+# DATA_ROOT = os.path.join(os.path.dirname(os.path.dirname(__file__)), "deepfashion2")
+# IMAGE_DIR = os.path.join(DATA_ROOT, "image")
+# ANNOT_DIR = os.path.join(DATA_ROOT, "annos")
+
+# def load_dataset():
+#     """
+#     Loads images and their corresponding labels (extracted from JSON annotations) 
+#     from the DeepFashion2 dataset. Returns image arrays and one-hot encoded labels.
+#     """
+#     file_names = sorted(os.listdir(IMAGE_DIR))
+#     X = []
+#     y = []
+#     label_to_index = {"top": 0, "bottom": 1, "dress": 2, "outerwear": 3}
+    
+#     for file_name in file_names:
+#         image_path = os.path.join(IMAGE_DIR, file_name)
+#         annot_path = os.path.join(ANNOT_DIR, os.path.splitext(file_name)[0] + ".json")
+        
+#         if not os.path.exists(annot_path):
+#             continue  # Skip if annotation file is missing
+        
+#         # Load and preprocess image
+#         try:
+#             img = Image.open(image_path).convert("RGB")
+#             img = img.resize(IMAGE_SIZE)
+#             img_array = np.array(img) / 255.0
+#         except Exception as e:
+#             print(f"Error loading image {image_path}: {e}")
+#             continue
+        
+#         # Load JSON annotation and extract category
+#         try:
+#             with open(annot_path, "r") as f:
+#                 annotation = json.load(f)
+#             # Prefer item1 if it exists; otherwise, use item2.
+#             if "item1" in annotation:
+#                 cat = annotation["item1"].get("category_name", "").lower()
+#             elif "item2" in annotation:
+#                 cat = annotation["item2"].get("category_name", "").lower()
+#             else:
+#                 cat = ""
+#             mapped_cat = CATEGORY_MAPPING.get(cat, None)
+#             if mapped_cat is None:
+#                 continue  # Skip if category not mapped
+#             label_index = label_to_index[mapped_cat]
+#         except Exception as e:
+#             print(f"Error processing annotation {annot_path}: {e}")
+#             continue
+        
+#         X.append(img_array)
+#         y.append(label_index)
+    
+#     if not X:
+#         raise ValueError("No data loaded. Please check your dataset paths and annotations.")
+    
+#     X = np.array(X)
+#     y = tf.keras.utils.to_categorical(np.array(y), num_classes=NUM_CLASSES)
+#     return X, y
+
 # def create_transfer_model():
-#     base_model = tf.keras.applications.MobileNetV2(weights="imagenet", include_top=False, input_shape=(IMAGE_SIZE[0], IMAGE_SIZE[1], 3))
-#     base_model.trainable = False  # freeze the base model layers
+#     base_model = MobileNetV2(
+#         weights="imagenet", include_top=False, input_shape=(IMAGE_SIZE[0], IMAGE_SIZE[1], 3)
+#     )
+#     base_model.trainable = False
 #     model = Sequential([
 #         base_model,
 #         GlobalAveragePooling2D(),
@@ -36,83 +104,161 @@
 #         Dropout(0.5),
 #         Dense(NUM_CLASSES, activation='softmax')
 #     ])
-#     model.compile(optimizer='adam', loss='categorical_crossentropy', metrics=['accuracy'])
+#     model.compile(optimizer=Adam(learning_rate=0.0001), loss='categorical_crossentropy', metrics=['accuracy'])
 #     return model
 
-# if __name__ == "__main__":
-#     # Update these paths to where you placed your DeepFashion2 dataset.
-#     train_dir = "../deepfashion2/train"
-#     val_dir = "../deepfashion2/val"
+# def main():
+#     print("Loading dataset...")
+#     X, y = load_dataset()
+#     print(f"Loaded {len(X)} samples.")
 
-#     # Data augmentation and generators
-#     train_datagen = ImageDataGenerator(
-#         rescale=1./255,
-#         rotation_range=20,
-#         zoom_range=0.15,
-#         width_shift_range=0.2,
-#         height_shift_range=0.2,
-#         horizontal_flip=True
-#     )
-#     val_datagen = ImageDataGenerator(rescale=1./255)
-
-#     train_generator = train_datagen.flow_from_directory(
-#         train_dir,
-#         target_size=IMAGE_SIZE,
-#         batch_size=BATCH_SIZE,
-#         class_mode='categorical'
-#     )
-#     validation_generator = val_datagen.flow_from_directory(
-#         val_dir,
-#         target_size=IMAGE_SIZE,
-#         batch_size=BATCH_SIZE,
-#         class_mode='categorical'
-#     )
-
-#     # Choose one of the model creation functions:
-#     # model = create_model()
-#     model = create_transfer_model()  # Using transfer learning with MobileNetV2 for better performance
+#     # Split into training and validation sets (80/20 split)
+#     X_train, X_val, y_train, y_val = train_test_split(X, y, test_size=0.2, random_state=42)
+    
+#     # Create and summarize the model
+#     model = create_transfer_model()
 #     model.summary()
-
+    
 #     # Train the model
 #     history = model.fit(
-#         train_generator,
+#         X_train, y_train,
+#         validation_data=(X_val, y_val),
 #         epochs=EPOCHS,
-#         validation_data=validation_generator
+#         batch_size=BATCH_SIZE
 #     )
+    
+#     # Save the trained model for inference
+#     model_dir = os.path.join(os.path.dirname(__file__), "models")
+#     os.makedirs(model_dir, exist_ok=True)
+#     model.save(os.path.join(model_dir, "stylist_model.h5"))
+#     print("Model saved successfully!")
 
-#     # Save the trained model for use in production (used by recommendation_engine.py)
-#     model.save("models/stylist_model.h5")
+# if __name__ == "__main__":
+#     main()
 
 
-# backend/training_model.py
+
+import os
+import json
+import numpy as np
 import tensorflow as tf
 from tensorflow.keras.models import Sequential
-from tensorflow.keras.layers import Conv2D, MaxPooling2D, Flatten, Dense, Dropout, GlobalAveragePooling2D
-from tensorflow.keras.preprocessing.image import ImageDataGenerator
+from tensorflow.keras.layers import Dense, Dropout, GlobalAveragePooling2D
+from tensorflow.keras.applications import MobileNetV2
+from tensorflow.keras.optimizers import Adam
+from sklearn.model_selection import train_test_split
+from PIL import Image
 
-# Parameters
+# Global parameters
 IMAGE_SIZE = (224, 224)
 BATCH_SIZE = 32
 EPOCHS = 10
-NUM_CLASSES = 4  # Adjusted for: top, bottom, dress, outerwear
+NUM_CLASSES = 4  # classes: top, bottom, dress, outerwear
 
-def create_model():
-    model = Sequential([
-        Conv2D(32, (3, 3), activation='relu', input_shape=(IMAGE_SIZE[0], IMAGE_SIZE[1], 3)),
-        MaxPooling2D(2, 2),
-        Conv2D(64, (3, 3), activation='relu'),
-        MaxPooling2D(2, 2),
-        Flatten(),
-        Dense(128, activation='relu'),
-        Dropout(0.5),
-        Dense(NUM_CLASSES, activation='softmax')
-    ])
-    model.compile(optimizer='adam', loss='categorical_crossentropy', metrics=['accuracy'])
-    return model
+# Mapping categories from annotations to our standardized classes.
+# Adjust or extend these mappings based on the dataset annotations.
+CATEGORY_MAPPING = {
+    "sling dress": "dress",
+    "dress": "dress",
+    "top": "top",
+    "blouse": "top",
+    "vest": "top",
+    "trouser": "bottom",
+    "skirt": "bottom",
+    "outerwear": "outerwear",
+    "jacket": "outerwear",
+    "coat": "outerwear",
+    # Add more mappings as needed...
+}
 
-# Option using transfer learning with MobileNetV2 for improved performance:
+# Directories (Assuming deepfashion2 is at the root level)
+# Adjust this if your deepfashion2 folder is elsewhere
+DATA_ROOT = os.path.join(os.path.dirname(os.path.dirname(__file__)), "deepfashion2")
+IMAGE_DIR = os.path.join(DATA_ROOT, "image")
+ANNOT_DIR = os.path.join(DATA_ROOT, "annos")
+
+def load_dataset(max_samples=None):
+    """
+    Loads images and corresponding labels from DeepFashion2.
+    Optionally, limit the number of samples loaded (useful for debugging with large datasets).
+
+    Returns:
+        X: numpy array of images
+        y: one-hot encoded labels
+    """
+    print("DATA_ROOT is set to:", DATA_ROOT)
+    print("Looking for images in:", IMAGE_DIR)
+    print("Looking for annotations in:", ANNOT_DIR)
+
+    file_names = sorted(os.listdir(IMAGE_DIR))
+    print(f"Found {len(file_names)} image files. Sample filenames: {file_names[:5]}")
+
+    X = []
+    y = []
+    label_to_index = {"top": 0, "bottom": 1, "dress": 2, "outerwear": 3}
+    count = 0
+
+    for file_name in file_names:
+        if max_samples is not None and count >= max_samples:
+            break
+
+        image_path = os.path.join(IMAGE_DIR, file_name)
+        # Create the annotation file name assuming extension changes to .json
+        annot_path = os.path.join(ANNOT_DIR, os.path.splitext(file_name)[0] + ".json")
+        
+        if not os.path.exists(annot_path):
+            print(f"[WARNING] No annotation file for image {file_name}. Expected at: {annot_path}")
+            continue
+
+        # Load and preprocess image
+        try:
+            img = Image.open(image_path).convert("RGB")
+            img = img.resize(IMAGE_SIZE)
+            img_array = np.array(img) / 255.0
+        except Exception as e:
+            print(f"[ERROR] Could not load image {image_path}: {e}")
+            continue
+
+        # Load JSON annotation and extract category
+        try:
+            with open(annot_path, "r") as f:
+                annotation = json.load(f)
+            # Check if annotation contains either "item1" or "item2"
+            if "item1" in annotation:
+                cat = annotation["item1"].get("category_name", "").lower()
+            elif "item2" in annotation:
+                cat = annotation["item2"].get("category_name", "").lower()
+            else:
+                print(f"[WARNING] No 'item1' or 'item2' key found in annotation {annot_path}.")
+                continue
+
+            mapped_cat = CATEGORY_MAPPING.get(cat, None)
+            if mapped_cat is None:
+                print(f"[WARNING] Unmapped category '{cat}' in {annot_path}. Skipping file.")
+                continue
+
+            label_index = label_to_index[mapped_cat]
+        except Exception as e:
+            print(f"[ERROR] Could not process annotation {annot_path}: {e}")
+            continue
+
+        # Debug: Show first few processed filenames and labels
+        if count < 5:
+            print(f"[DEBUG] Processed file: {file_name} -> Category: {cat} mapped to {mapped_cat}")
+
+        X.append(img_array)
+        y.append(label_index)
+        count += 1
+
+    if not X:
+        raise ValueError("No data loaded. Please check your dataset paths and annotations.")
+
+    X = np.array(X)
+    y = tf.keras.utils.to_categorical(np.array(y), num_classes=NUM_CLASSES)
+    return X, y
+
 def create_transfer_model():
-    base_model = tf.keras.applications.MobileNetV2(
+    base_model = MobileNetV2(
         weights="imagenet", include_top=False, input_shape=(IMAGE_SIZE[0], IMAGE_SIZE[1], 3)
     )
     base_model.trainable = False
@@ -123,45 +269,36 @@ def create_transfer_model():
         Dropout(0.5),
         Dense(NUM_CLASSES, activation='softmax')
     ])
-    model.compile(optimizer='adam', loss='categorical_crossentropy', metrics=['accuracy'])
+    model.compile(optimizer=Adam(learning_rate=0.0001), loss='categorical_crossentropy', metrics=['accuracy'])
     return model
 
-if __name__ == "__main__":
-    # Update these paths based on your DeepFashion2 organization:
-    train_dir = "../deepfashion2/train"
-    val_dir = "../deepfashion2/val"
+def main():
+    print("Loading dataset...")
+    # For testing purposes, you can set max_samples to a small number (e.g., 50) to check if loading works.
+    X, y = load_dataset(max_samples=50)  # Remove or set to None to load the full dataset.
+    print(f"Loaded {len(X)} samples.")
 
-    train_datagen = ImageDataGenerator(
-        rescale=1./255,
-        rotation_range=20,
-        zoom_range=0.15,
-        width_shift_range=0.2,
-        height_shift_range=0.2,
-        horizontal_flip=True
-    )
-    val_datagen = ImageDataGenerator(rescale=1./255)
+    # Split into training and validation sets (80/20 split)
+    X_train, X_val, y_train, y_val = train_test_split(X, y, test_size=0.2, random_state=42)
 
-    train_generator = train_datagen.flow_from_directory(
-        train_dir,
-        target_size=IMAGE_SIZE,
-        batch_size=BATCH_SIZE,
-        class_mode='categorical'
-    )
-    validation_generator = val_datagen.flow_from_directory(
-        val_dir,
-        target_size=IMAGE_SIZE,
-        batch_size=BATCH_SIZE,
-        class_mode='categorical'
-    )
-
-    # Choose the appropriate model creation function:
-    model = create_transfer_model()  # Using MobileNetV2 transfer learning
+    # Create and summarize the model
+    model = create_transfer_model()
     model.summary()
 
+    # Train the model
     history = model.fit(
-        train_generator,
+        X_train, y_train,
+        validation_data=(X_val, y_val),
         epochs=EPOCHS,
-        validation_data=validation_generator
+        batch_size=BATCH_SIZE
     )
 
-    model.save("models/stylist_model.h5")
+    # Save the trained model for inference
+    model_dir = os.path.join(os.path.dirname(__file__), "models")
+    os.makedirs(model_dir, exist_ok=True)
+    model_save_path = os.path.join(model_dir, "stylist_model.h5")
+    model.save(model_save_path)
+    print("Model saved successfully at:", model_save_path)
+
+if __name__ == "__main__":
+    main()
